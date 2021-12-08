@@ -3,6 +3,8 @@ library(tidyverse)
 library(ggplot2)
 library(dplyr)
 library(mapproj)
+library(shinythemes)
+library(RColorBrewer)
 
 
 sports <- read_csv("data/college_revenue.csv")
@@ -15,11 +17,13 @@ sanctions <- sort(unique(sports$`Sanction Name`))
 states <- sort(unique(sports$`State CD`))
 min_year <- min(sports$`Survey Year`)
 max_year <- max(sports$`Survey Year`)
+sports$'Total Profit' <- sports$`Grand Total Revenue` - sports$`Grand Total Expenses`
 
 # Define UI for application that draws a histogram
 ui <- navbarPage(# Application title
     title="College Basketball Revenue and Expenses: 2003-2016",
-    
+    footer = 'Shiny App Project - DSBA 5122: Visual Analytics',
+    theme = shinytheme('cosmo'),
     
     # Sidebar with a slider input for number of bins
     tabsetPanel(
@@ -63,7 +67,12 @@ ui <- navbarPage(# Application title
                 
                ),
                mainPanel(
-                 plotOutput("linechart", height = "700px", width = "700px")
+                 fluidRow(plotOutput("linechart", height = "600px", width = "600px")),
+                 fluidRow(
+                   column(10,
+                          br(),
+                          p('\n When revenue and expenses are close in value, you may not be able to see expenses line.'))
+                 )
                )
                
              )
@@ -79,12 +88,16 @@ ui <- navbarPage(# Application title
                     step = 1,
                     sep = ""),
         radioButtons("sanc", "Select Sanction:", choices = sanctions, selected = 'NCAA'),
-        uiOutput("state_choice")
+        uiOutput("state_choice"),
+        radioButtons('value2',
+                     'Value to Display:',
+                     list("Total Revenue","Total Profit", "Total Expenses"),
+                     selected = 'Total Revenue')
       ),
       
       
       mainPanel(
-        plotOutput("top20", height = "700px", width = "700px")
+        plotOutput("top10", height = "700px", width = "700px")
       )
       )
     ),
@@ -123,7 +136,13 @@ ui <- navbarPage(# Application title
                        Business Analytics MS program."),
                     br(),
                     HTML("<p> View application on <a href = 'https://github.com/tcox17/Sports_Analytics'> 
-                          Github </p>"),
+                          Taylor's Github </a>"),
+                    br(),
+                    HTML("<p> View application on <a href = 'https://github.com/cvderrick/College_Basketball_Revenues'> 
+                         Connor's Github </a>"),
+                    br(),
+                    HTML("<p> View application on <a href = 'https://github.com/Adonis35/College-Basketball-Revenue-Expenses'> 
+                         Adonis's Github </a>"),
                     hr(),
                     HTML('<a href = "https://www.linkedin.com/in/adonis-abdullah/" 
                          style = "color: #FFC300"> Adonis Abdullah Linkedin</a>'),
@@ -134,9 +153,9 @@ ui <- navbarPage(# Application title
                     HTML('<a href = "https://www.linkedin.com/in/connorvderrick/"
                          style = "color: #FFC300"> Connor Derrick Linkedin</a>')
              ),
-             column(3)),
-    footer = 'Shiny App Project - DSBA 5122: Visual Analytics'
-    ))
+             column(3)
+    
+    )))
 
 # Define server logic required to draw a histogram
 server <- function(input, output) {
@@ -163,7 +182,11 @@ server <- function(input, output) {
                                  labels = scales::label_number_si())+
             coord_map() +
             theme_bw() +
-            labs(title = 'Basketball Revenue and Expenses by State', x = '', y = '') 
+            labs(title = 'Basketball Revenue and Expenses by State', x = '', y = '') +
+            theme(axis.ticks = element_blank(),
+                  axis.text.x = element_blank(), 
+                  axis.text.y = element_blank(),
+                  panel.grid = element_blank())
             
             
                 
@@ -200,7 +223,7 @@ server <- function(input, output) {
         labs(title = input$school,
              x='Year', y ='US Dollars ($)') +
         scale_y_continuous(labels = scales::label_number_si()) +
-        theme_bw() 
+        theme_bw(base_size =  16) 
         #theme(title = element_text(size = 17),
               #axis.text.x = element_text(size = 15),
               #axis.text.y = element_text(size = 15, face = "bold"))
@@ -245,7 +268,7 @@ server <- function(input, output) {
                               [sports$`Sanction Name`==input$sanc,"State CD"])[1])
     })
     
-    output$top20 <- renderPlot({
+    output$top10 <- renderPlot({
       state_grouping <- sports %>% 
         filter(`Survey Year`==input$year3) %>% 
         filter(`Sanction Name`==input$sanc) %>%
@@ -253,6 +276,19 @@ server <- function(input, output) {
         arrange(`Grand Total Revenue`) %>%
         top_n(`Grand Total Revenue`,n=10)
       
+      profit_grouping <- sports %>% 
+        filter(`Survey Year`==input$year3) %>% 
+        filter(`Sanction Name`==input$sanc) %>%
+        filter(`State CD` == input$state) %>%
+        arrange(`Total Profit`) %>%
+        top_n(`Total Profit`,n=10)
+      
+      exp_grouping <- sports %>% 
+        filter(`Survey Year`==input$year3) %>% 
+        filter(`Sanction Name`==input$sanc) %>%
+        filter(`State CD` == input$state) %>%
+        arrange(-`Grand Total Expenses`) %>%
+        top_n(`Grand Total Expenses`,n=-10)
       
       
       
@@ -260,14 +296,51 @@ server <- function(input, output) {
         geom_bar(aes(y = `Grand Total Revenue`, color = `Institution Name`, 
                      fill = `Institution Name`), stat = 'identity')+ 
         coord_flip() +
-        theme_bw() +
+        theme_bw(base_size =  16) +
         scale_color_brewer(palette="Spectral") +
         scale_fill_brewer(palette="Spectral") +
         scale_y_continuous(labels = scales::label_number_si())+
-        labs(title = 'Top Schools by Revenue',
-             x='', y ='Revenue ($)')
+        labs(title = 'Top Schools with Highest Revenue',
+             x='', y ='Revenue ($)') +
+        theme(legend.position = 'none')
       
-      gg
+      gg2 <- ggplot(profit_grouping, aes(x =reorder(`Institution Name`, `Total Profit`))) +
+        geom_bar(aes(y = `Total Profit`, color = `Institution Name`, 
+                     fill = `Institution Name`), stat = 'identity')+ 
+        coord_flip() +
+        theme_bw(base_size =  16) +
+        scale_color_brewer(palette="Spectral") +
+        scale_fill_brewer(palette="Spectral") +
+        scale_y_continuous(labels = scales::label_number_si())+
+        labs(title = 'Top Schools with Highest Profit',
+             x='', y ='Profit ($)') +
+        theme(legend.position = 'none')
+      
+      gg3 <- ggplot(exp_grouping, aes(x =reorder(`Institution Name`, - `Grand Total Expenses`))) +
+        geom_bar(aes(y = `Grand Total Expenses`, color = `Institution Name`, 
+                     fill = `Institution Name`), stat = 'identity')+ 
+        coord_flip() +
+        theme_bw(base_size =  16) +
+        scale_color_brewer(palette="Spectral") +
+        scale_fill_brewer(palette="Spectral") +
+        scale_y_continuous(labels = scales::label_number_si())+
+        labs(title = 'Top Schools with Lowest Expenses',
+             x='', y ='Expenses ($)') +
+        theme(legend.position = 'none')
+      
+      
+      
+      if(input$value2 == 'Total Profit'){
+        gg2
+      }
+      
+      else if(input$value2 == 'Total Expenses'){
+        gg3
+      }
+      else{
+        gg
+      }
+      
     })
     
     
@@ -286,7 +359,7 @@ server <- function(input, output) {
       
       ggplot(df2, aes(x = Variables, y = Dollars, fill = Variables)) + 
         geom_col() +
-        theme_bw()+
+        theme_bw(base_size =  16)+
         scale_y_continuous(labels = scales::label_number_si())+
         labs(title = "Men's vs Women's Revenue and Expenses",
               x= '',y ='US Dollars($)') +
